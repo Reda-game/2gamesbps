@@ -1,1 +1,556 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Ultimate Stickman Adventure</title>
+<style>
+  /* Mobile Controls */
+#mobileControls {
+  position: fixed;
+  bottom: 30px;
+  width: 100%;
+  display: none;
+  justify-content: center;
+  z-index: 100;
+  touch-action: manipulation;
+}
 
+.control-group {
+  display: flex;
+  gap: 30px;
+}
+
+.control-btn {
+  width: 70px;
+  height: 70px;
+  background: rgba(0, 0, 0, 0.5);
+  border: 2px solid white;
+  border-radius: 50%;
+  color: white;
+  font-size: 28px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* Toon alleen op mobiel */
+@media (hover: none) and (pointer: coarse) {
+  #mobileControls {
+    display: flex;
+  }
+}
+  
+  body { margin: 0; background: #fff; overflow: hidden; font-family: Arial, sans-serif; }
+  canvas { background: #eee; display: block; margin: auto; }
+</style>
+</head>
+
+  <!-- Mobile Controls Container -->
+<div id="mobileControls">
+  <div class="control-group">
+    <div id="leftBtn" class="control-btn">←</div>
+    <div id="jumpBtn" class="control-btn">↑</div>
+    <div id="rightBtn" class="control-btn">→</div>
+  </div>
+</div>
+  
+<body>
+<canvas id="gameCanvas" width="800" height="600"></canvas>
+<script>
+const canvas = document.getElementById('gameCanvas');
+const ctx = canvas.getContext('2d');
+
+const WHITE = '#FFFFFF';
+const BLACK = '#000000';
+const BLUE = '#0000FF';
+const RED = '#FF0000';
+const GREEN = '#00FF00';
+const GOLD = '#FFD700';
+const PURPLE = '#800080';
+
+let keys = {};
+  let cameraOffsetX = 0;
+
+
+// Player
+const stickmanWidth = 20;
+const stickmanHeight = 40;
+let player = {
+  x: 100,
+  y: 300,
+  width: stickmanWidth,
+  height: stickmanHeight,
+  velY: 0,
+  speed: 5,
+  jumping: false,
+  invincible: false,
+  invincibleTimer: 0,
+};
+
+// Physics
+const gravity = 0.5;
+
+// Game state
+let score = 0;
+let lives = 3;
+let currentLevel = 1;
+let gameState = 'playing'; // 'playing', 'levelComplete', 'gameOver', 'gameWin', 'missingCoins'
+let levelTime = 0;
+let gameTime = 60;
+let missingCoinsTimer = 0;
+
+// Levels data
+// We generate 50 levels, each harder than the previous by adding more platforms, coins and enemies
+const levels = [];
+
+function generateLevel(levelNum) {
+  // Clear previous data
+  let numPlatforms = Math.min(4 + Math.floor(levelNum / 3), 12);
+  let numCoins = Math.min(3 + Math.floor(levelNum / 2), 15);
+  let numEnemies = Math.min(Math.floor(levelNum / 5), 10);
+  let timeLimit = Math.max(60 - levelNum, 15);
+  
+  // Generate platforms evenly spaced vertically, some random width and position
+  let platforms = [];
+  for(let i = 0; i < numPlatforms; i++) {
+    let width = 100 + Math.random() * 150;
+    let height = 20;
+    let x = Math.random() * (canvas.width - width);
+    let y = canvas.height - 100 - i * 50 - Math.random() * 30;
+    platforms.push({x, y, width, height});
+  }
+  
+  // Target is always near the top right platform or at fixed pos if no platforms
+  let targetX = canvas.width - 50;
+  let targetY = 100;
+  if(platforms.length > 0) {
+    const topPlatform = platforms.reduce((prev, curr) => (curr.y < prev.y ? curr : prev), platforms[0]);
+    targetX = topPlatform.x + topPlatform.width - 30;
+    targetY = topPlatform.y - 40;
+  }
+  
+  // Coins placed randomly on platforms
+  let coins = [];
+  for(let i = 0; i < numCoins; i++) {
+    let plat = platforms[Math.floor(Math.random() * platforms.length)];
+    let coinX = plat.x + 10 + Math.random() * (plat.width - 30);
+    let coinY = plat.y - 20;
+    coins.push({x: coinX, y: coinY, collected: false});
+  }
+  
+  // Enemies patrol horizontally on random platforms
+  let enemies = [];
+  for(let i = 0; i < numEnemies; i++) {
+    let plat = platforms[Math.floor(Math.random() * platforms.length)];
+    let enemyWidth = 30;
+    let enemyHeight = 20;
+    let enemyX = plat.x + Math.random() * (plat.width - enemyWidth);
+    let enemyY = plat.y - enemyHeight;
+    let speed = 1 + Math.random() * 2 + levelNum * 0.1;
+    enemies.push({x: enemyX, y: enemyY, width: enemyWidth, height: enemyHeight, speed, direction: 1, platform: plat});
+  }
+  
+  return {
+    platforms,
+    target: {x: targetX, y: targetY, width: 30, height: 40, isLocked: false},
+    coins,
+    enemies,
+    start: {x: 100, y: 300},
+    timeLimit,
+    requiredCoins: numCoins,
+  };
+}
+
+let level = generateLevel(currentLevel);
+
+// Helper function to reset player position and states
+function resetPlayer() {
+  player.x = level.start.x;
+  player.y = level.start.y;
+  player.velY = 0;
+  player.jumping = false;
+  player.invincible = false;
+  player.invincibleTimer = 0;
+  levelTime = 0;
+  missingCoinsTimer = 0;
+}
+
+// Collision detection helper
+function rectsCollide(r1, r2) {
+  return !(r1.x > r2.x + r2.width || 
+           r1.x + r1.width < r2.x || 
+           r1.y > r2.y + r2.height || 
+           r1.y + r1.height < r2.y);
+}
+
+// Draw stickman
+function drawStickman(p) {
+  const cX = p.x - cameraOffsetX + p.width / 2;
+  const cY = p.y + 10;
+  ctx.fillStyle = p.invincible ? PURPLE : BLACK;
+  ctx.beginPath();
+  ctx.arc(cX, cY, 10, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.lineWidth = 2;
+  ctx.strokeStyle = ctx.fillStyle;
+  // Body
+  ctx.beginPath();
+  ctx.moveTo(cX, p.y + 20);
+  ctx.lineTo(cX, p.y + 40);
+  ctx.stroke();
+  // Arms
+  ctx.beginPath();
+  ctx.moveTo(cX, p.y + 25);
+  ctx.lineTo(p.x, p.y + 35);
+  ctx.moveTo(cX, p.y + 25);
+  ctx.lineTo(p.x + p.width, p.y + 35);
+  ctx.stroke();
+  // Legs
+  ctx.beginPath();
+  ctx.moveTo(cX, p.y + 40);
+  ctx.lineTo(p.x, p.y + 55);
+  ctx.moveTo(cX, p.y + 40);
+  ctx.lineTo(p.x + p.width, p.y + 55);
+  ctx.stroke();
+}
+
+// Draw platforms
+function drawPlatforms(platforms) {
+  ctx.fillStyle = BLUE;
+  for (const plat of platforms) {
+    ctx.fillRect(plat.x - cameraOffsetX, plat.y, plat.width, plat.height);
+  }
+}
+
+// Draw coins
+function drawCoins(coins) {
+  for (const coin of coins) {
+    if (!coin.collected) {
+      ctx.fillStyle = GOLD;
+      ctx.beginPath();
+      ctx.arc(coin.x + 10 - cameraOffsetX, coin.y + 10, 10, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = 'orange';
+      ctx.stroke();
+    }
+  }
+}
+
+// Draw enemies
+function drawEnemies(enemies) {
+  ctx.fillStyle = RED;
+  for (const enemy of enemies) {
+    ctx.fillRect(enemy.x - cameraOffsetX, enemy.y, enemy.width, enemy.height);
+  }
+}
+
+// Draw target (finish)
+function drawTarget(target) {
+  ctx.fillStyle = target.isLocked ? RED : GREEN;
+  ctx.fillRect(target.x - cameraOffsetX, target.y, target.width, target.height);
+}
+
+// Draw HUD (score, lives, level, coins, time)
+function drawHUD() {
+  ctx.fillStyle = BLACK;
+  ctx.font = '20px Arial';
+  ctx.fillText('Score: ' + score, 10, 30);
+  ctx.fillText('Lives: ' + lives, 10, 60);
+  ctx.fillText('Level: ' + currentLevel + '/50', 10, 90);
+  ctx.fillText(`Coins: ${collectedCoins()}/${level.requiredCoins}`, 10, 120);
+  ctx.fillText('Time: ' + Math.max(0, Math.floor(gameTime)), 10, 150);
+}
+
+// Count collected coins
+function collectedCoins() {
+  return level.coins.filter(c => c.collected).length;
+}
+
+// Restart game function
+function restartGame() {
+  score = 0;
+  lives = 3;
+  currentLevel = 1;
+  gameState = 'playing';
+  level = generateLevel(currentLevel);
+  resetPlayer();
+}
+
+// Level complete handler
+function levelComplete() {
+  score += Math.floor(gameTime * 10); // Bonus voor resterende tijd
+  currentLevel++;
+  if(currentLevel > 50) {
+    gameState = 'gameWin';
+  } else {
+    level = generateLevel(currentLevel);
+    resetPlayer();
+    gameState = 'playing';
+  }
+}
+
+// Game over handler
+function gameOver() {
+  gameState = 'gameOver';
+}
+
+// Update function
+function update(dt) 
+    if (isTouchDevice()) {
+      // Houd de speler ⅓ van het scherm vanaf links
+      const desiredX = canvas.width / 3;
+      cameraOffsetX = player.x - desiredX;
+      // Beperk scroll aan linkerkant
+      if (cameraOffsetX < 0) cameraOffsetX = 0;
+    } else {
+      cameraOffsetX = 0;
+    }
+{
+  if(gameState === 'playing') {
+    levelTime += dt;
+    gameTime = level.timeLimit - levelTime;
+    if(gameTime <= 0) {
+      lives--;
+      if(lives <= 0) {
+        gameOver();
+      } else {
+        level = generateLevel(currentLevel);
+        resetPlayer();
+        gameState = 'playing';
+      }
+      return;
+    }
+    
+    // Horizontal movement
+    if(keys['ArrowLeft'] || keys['KeyA']) {
+      player.x -= player.speed;
+      if(player.x < 0) player.x = 0;
+    }
+    if(keys['ArrowRight'] || keys['KeyD']) {
+      player.x += player.speed;
+      if(player.x + player.width > canvas.width) player.x = canvas.width - player.width;
+    }
+    
+    // Jump
+    if((keys['ArrowUp'] || keys['KeyW'] || keys['Space']) && !player.jumping) {
+      player.velY = -12;
+      player.jumping = true;
+    }
+    
+    // Gravity
+    player.velY += gravity;
+    player.y += player.velY;
+    
+    // Platform collision & ground
+    let onPlatform = false;
+    for(const plat of level.platforms) {
+      if(player.x + player.width > plat.x && player.x < plat.x + plat.width) {
+        if(player.y + player.height > plat.y && player.y + player.height < plat.y + plat.height + player.velY) {
+          player.y = plat.y - player.height;
+          player.velY = 0;
+          player.jumping = false;
+          onPlatform = true;
+        }
+      }
+    }
+    // Ground floor
+    if(player.y + player.height > canvas.height) {
+      player.y = canvas.height - player.height;
+      player.velY = 0;
+      player.jumping = false;
+      onPlatform = true;
+    }
+    
+    // Collect coins
+    for(const coin of level.coins) {
+      if(!coin.collected) {
+        if(rectsCollide(player, {x: coin.x, y: coin.y, width: 20, height: 20})) {
+          coin.collected = true;
+          score += 10;
+        }
+      }
+    }
+    
+    // Enemy movement and collision
+    for(const enemy of level.enemies) {
+      enemy.x += enemy.speed * enemy.direction;
+      // Reverse direction if hitting platform edges
+      if(enemy.x < enemy.platform.x || enemy.x + enemy.width > enemy.platform.x + enemy.platform.width) {
+        enemy.direction *= -1;
+        enemy.x += enemy.speed * enemy.direction;
+      }
+      
+      if(!player.invincible && rectsCollide(player, enemy)) {
+        lives--;
+        player.invincible = true;
+        player.invincibleTimer = 120; // 2 seconds at 60fps
+        if(lives <= 0) {
+          gameOver();
+        }
+      }
+    }
+    
+    // Invincibility timer
+    if(player.invincible) {
+      player.invincibleTimer--;
+      if(player.invincibleTimer <= 0) {
+        player.invincible = false;
+      }
+    }
+    
+    // Check if player reached target (green block)
+    if(rectsCollide(player, level.target)) {
+      if(collectedCoins() === level.requiredCoins) {
+        levelComplete();
+      } else {
+        // Lock target red to indicate missing coins
+        level.target.isLocked = true;
+        missingCoinsTimer = 60; // show lock 1 second
+      }
+    } else {
+      if(missingCoinsTimer > 0) {
+        missingCoinsTimer--;
+      } else {
+        level.target.isLocked = false;
+      }
+    }
+  }
+}
+
+// Draw function
+function draw() {
+  // Clear
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  
+  if(gameState === 'playing') {
+    drawPlatforms(level.platforms);
+    drawCoins(level.coins);
+    drawEnemies(level.enemies);
+    drawTarget(level.target);
+    drawStickman(player);
+    drawHUD();
+    
+    if(level.target.isLocked) {
+      ctx.fillStyle = RED;
+      ctx.font = '24px Arial';
+      ctx.fillText('Verzamel alle munten eerst!', canvas.width/2 - 130, 50);
+    }
+  } else if(gameState === 'gameOver') {
+    ctx.fillStyle = RED;
+    ctx.font = '48px Arial';
+    ctx.fillText('Game Over!', canvas.width / 2 - 120, canvas.height / 2 - 20);
+    ctx.font = '24px Arial';
+    ctx.fillText('Druk op R om opnieuw te starten', canvas.width / 2 - 140, canvas.height / 2 + 30);
+  } else if(gameState === 'gameWin') {
+    ctx.fillStyle = GREEN;
+    ctx.font = '48px Arial';
+    ctx.fillText('Gefeliciteerd! Je hebt gewonnen!', canvas.width / 2 - 280, canvas.height / 2 - 20);
+    ctx.font = '24px Arial';
+    ctx.fillText('Druk op R om opnieuw te starten', canvas.width / 2 - 140, canvas.height / 2 + 30);
+  }
+}
+
+// Main loop
+let lastTime = 0;
+function gameLoop(timestamp=0) {
+  const dt = (timestamp - lastTime) / 1000; // seconds
+  lastTime = timestamp;
+  
+  if(gameState === 'playing') {
+    update(dt);
+  }
+  draw();
+  requestAnimationFrame(gameLoop);
+}
+
+// Event listeners
+window.addEventListener('keydown', e => {
+  keys[e.code] = true;
+  if(e.code === 'KeyR') {
+    restartGame();
+  }
+});
+window.addEventListener('keyup', e => {
+  keys[e.code] = false;
+});
+// Mobile controls initialisatie
+function initMobileControls() {
+  const leftBtn = document.getElementById('leftBtn');
+  const rightBtn = document.getElementById('rightBtn');
+  const jumpBtn = document.getElementById('jumpBtn');
+
+  // Touch events
+  leftBtn.addEventListener('touchstart', () => keys['ArrowLeft'] = true);
+  leftBtn.addEventListener('touchend', () => keys['ArrowLeft'] = false);
+  
+  rightBtn.addEventListener('touchstart', () => keys['ArrowRight'] = true);
+  rightBtn.addEventListener('touchend', () => keys['ArrowRight'] = false);
+  
+  jumpBtn.addEventListener('touchstart', () => {
+    if (!player.jumping) {
+      keys['ArrowUp'] = true;
+      // Reset na korte tijd voor betere respons
+      setTimeout(() => keys['ArrowUp'] = false, 100);
+    }
+  });
+
+  // Voorkom scrollen bij gebruik controls
+  document.addEventListener('touchmove', (e) => {
+    if (e.target.classList.contains('control-btn')) {
+      e.preventDefault();
+    }
+  }, { passive: false });
+}
+
+// Controleer of het een touch device is
+function isTouchDevice() {
+  return 'ontouchstart' in window || navigator.maxTouchPoints > 0;
+}
+
+// Initialiseer controls als het een mobiel apparaat is
+if (isTouchDevice()) {
+  initMobileControls();
+}
+  
+// Start the game
+resetPlayer();
+gameLoop();
+
+</script>
+</body>
+</html>
+
+<style>
+  #homeButton {
+    position: fixed;
+    bottom: 20px;
+    left: 20px;
+    background-color: #00cc00;
+    color: white;
+    padding: 10px 16px;
+    font-family: Arial, sans-serif;
+    font-size: 16px;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    user-select: none;
+    z-index: 10000;
+    box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+    transition: background-color 0.3s ease;
+  }
+  #homeButton:hover {
+    background-color: #009900;
+  }
+</style>
+
+<button id="homeButton" type="button" aria-label="Home knop">Home</button>
+
+<script>
+  document.getElementById('homeButton').addEventListener('click', () => {
+    window.location.href = 'https://reda-game.github.io/2gamesbps/';
+  });
+</script>
