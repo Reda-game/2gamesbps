@@ -1,0 +1,296 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>3D Shooter Game</title>
+  <style>
+    body {
+      margin: 0;
+      overflow: hidden;
+      font-family: Arial, sans-serif;
+      background: #111;
+      color: white;
+    }
+    canvas {
+      display: block;
+    }
+    #startScreen, #gameOverBanner, #controls {
+      position: absolute;
+      background: rgba(46, 204, 113, 0.9);
+      border-radius: 10px;
+      text-align: center;
+      padding: 20px 30px;
+      user-select: none;
+    }
+    #startScreen {
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      display: block;
+      z-index: 10;
+    }
+    #gameOverBanner {
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      font-size: 48px;
+      color: red;
+      display: none;
+      z-index: 10;
+    }
+    #scoreDisplay {
+      position: fixed;
+      top: 10px;
+      left: 10px;
+      font-size: 20px;
+      background: rgba(0,0,0,0.5);
+      padding: 10px 15px;
+      border-radius: 8px;
+      z-index: 10;
+      user-select: none;
+    }
+    #settingsToggle {
+      position: fixed;
+      top: 10px;
+      right: 10px;
+      z-index: 10;
+    }
+    #controls {
+      top: 50px;
+      right: 10px;
+      width: 200px;
+      background: rgba(46, 204, 113, 0.95);
+      display: none;
+      text-align: left;
+      z-index: 10;
+      user-select: none;
+    }
+    button, input[type=range] {
+      cursor: pointer;
+      font-size: 16px;
+      margin-top: 8px;
+    }
+  </style>
+</head>
+<body>
+
+  <div id="startScreen">
+    <h1>3D Shooter Game</h1>
+    <button id="startBtn">Start Game</button>
+  </div>
+
+  <div id="scoreDisplay">Score: <span id="score">0</span></div>
+
+  <div id="settingsToggle">
+    <button>⚙️</button>
+  </div>
+
+  <div id="controls">
+    <label>
+      Sensitivity:<br />
+      <input type="range" id="sensitivity" min="0.05" max="0.5" step="0.01" value="0.1" />
+    </label>
+    <br />
+    <button id="resetHighScore">Reset High Score</button>
+  </div>
+
+  <div id="gameOverBanner">GAME OVER<br>Restarting...</div>
+
+  <!-- Three.js via CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/three@0.152.2/build/three.min.js"></script>
+  <script>
+    // --- Variabelen en elementreferenties ---
+    let score = 0;
+    let highScore = parseInt(localStorage.getItem('highScore')) || 0;
+    let gameStarted = false;
+    let isGameOver = false;
+    let sensitivity = 0.1;
+
+    const scoreText = document.getElementById('score');
+    const gameOverBanner = document.getElementById('gameOverBanner');
+    const startScreen = document.getElementById('startScreen');
+    const startBtn = document.getElementById('startBtn');
+    const settingsToggle = document.getElementById('settingsToggle').querySelector('button');
+    const controls = document.getElementById('controls');
+    const sensitivityInput = document.getElementById('sensitivity');
+    const resetHighScoreBtn = document.getElementById('resetHighScore');
+
+    // --- Toggle instellingen menu ---
+    settingsToggle.addEventListener('click', () => {
+      controls.style.display = controls.style.display === 'block' ? 'none' : 'block';
+    });
+
+    sensitivityInput.addEventListener('input', (e) => {
+      sensitivity = parseFloat(e.target.value);
+    });
+
+    resetHighScoreBtn.addEventListener('click', () => {
+      localStorage.setItem('highScore', 0);
+      alert('High score reset.');
+    });
+
+    // --- Three.js setup ---
+    const scene = new THREE.Scene();
+    const camera = new THREE.PerspectiveCamera(
+      75,
+      window.innerWidth / window.innerHeight,
+      0.1,
+      1000
+    );
+    camera.position.z = 0;
+
+    const renderer = new THREE.WebGLRenderer({ antialias: true });
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    document.body.appendChild(renderer.domElement);
+
+    // Licht
+    const light = new THREE.DirectionalLight(0xffffff, 1);
+    light.position.set(10, 10, 10);
+    scene.add(light);
+
+    // Speler
+    const player = new THREE.Mesh(
+      new THREE.BoxGeometry(1, 1, 1),
+      new THREE.MeshBasicMaterial({ color: 0x00ff00 })
+    );
+    player.position.z = -5;
+    scene.add(player);
+
+    const bullets = [];
+    let enemies = [];
+
+    // Vijand maken
+    function createEnemy() {
+      const enemy = new THREE.Mesh(
+        new THREE.BoxGeometry(1, 1, 1),
+        new THREE.MeshBasicMaterial({ color: 0xff0000 })
+      );
+      enemy.position.x = (Math.random() - 0.5) * 10;
+      enemy.position.y = (Math.random() - 0.5) * 10;
+      enemy.position.z = -20;
+      scene.add(enemy);
+      return enemy;
+    }
+
+    // Vijanden spawnen
+    function spawnEnemies() {
+      if (Math.random() < 0.02) enemies.push(createEnemy());
+    }
+
+    // Bullet class
+    class Bullet {
+      constructor(position) {
+        this.mesh = new THREE.Mesh(
+          new THREE.SphereGeometry(0.1, 8, 8),
+          new THREE.MeshBasicMaterial({ color: 0xffff00 })
+        );
+        this.mesh.position.copy(position);
+        scene.add(this.mesh);
+      }
+
+      update() {
+        this.mesh.position.z -= 0.2;
+      }
+    }
+
+    // Toetsen bijhouden
+    const keys = {};
+    window.addEventListener('keydown', e => keys[e.key] = true);
+    window.addEventListener('keyup', e => keys[e.key] = false);
+
+    // Speler bewegen
+    function movePlayer() {
+      if (keys['ArrowUp']) player.position.y += sensitivity;
+      if (keys['ArrowDown']) player.position.y -= sensitivity;
+      if (keys['ArrowLeft']) player.position.x -= sensitivity;
+      if (keys['ArrowRight']) player.position.x += sensitivity;
+
+      player.position.x = THREE.MathUtils.clamp(player.position.x, -5, 5);
+      player.position.y = THREE.MathUtils.clamp(player.position.y, -3.5, 3.5);
+    }
+
+    // Schieten
+    function shoot() {
+      bullets.push(new Bullet(player.position.clone()));
+    }
+
+    window.addEventListener('keydown', e => {
+      if (e.key === ' ') shoot();
+    });
+
+    // Botsingen detecteren
+    function detectCollisions() {
+      enemies.forEach((enemy, ei) => {
+        bullets.forEach((bullet, bi) => {
+          if (enemy.position.distanceTo(bullet.mesh.position) < 1) {
+            scene.remove(enemy);
+            scene.remove(bullet.mesh);
+            enemies.splice(ei, 1);
+            bullets.splice(bi, 1);
+            score++;
+            scoreText.textContent = score;
+            if (score > highScore) {
+              highScore = score;
+              localStorage.setItem('highScore', highScore);
+            }
+          }
+        });
+      });
+    }
+
+    // Game Over check
+    function checkGameOver() {
+      if (isGameOver) return true;
+
+      for (let enemy of enemies) {
+        if (enemy.position.distanceTo(player.position) < 1) {
+          isGameOver = true;
+          gameOverBanner.style.display = 'block';
+          setTimeout(() => location.reload(), 1000);
+          return true;
+        }
+      }
+
+      return false;
+    }
+
+    // Animatielus
+    function animate() {
+      if (!gameStarted || isGameOver) return;
+
+      requestAnimationFrame(animate);
+      movePlayer();
+
+      bullets.forEach((bullet, index) => {
+        bullet.update();
+        if (bullet.mesh.position.z < -50) {
+          scene.remove(bullet.mesh);
+          bullets.splice(index, 1);
+        }
+      });
+
+      enemies.forEach(enemy => (enemy.position.z += 0.05));
+      spawnEnemies();
+      detectCollisions();
+      if (checkGameOver()) return;
+
+      renderer.render(scene, camera);
+    }
+
+    // Start game
+    startBtn.addEventListener('click', () => {
+      startScreen.style.display = 'none';
+      gameStarted = true;
+      animate();
+    });
+
+    // Scherm resize
+    window.addEventListener('resize', () => {
+      camera.aspect = window.innerWidth/window.innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(window.innerWidth, window.innerHeight);
+    });
+  </script>
+</body>
+</html>
