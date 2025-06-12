@@ -147,7 +147,7 @@ let player = {
   invincibleTimer: 0,
 };
 
-// Camera
+// Camera - alleen voor mobiel
 let camera = {
   x: 0,
   y: 0,
@@ -180,12 +180,12 @@ function generateLevel(levelNum) {
   for(let i = 0; i < numPlatforms; i++) {
     let width = 100 + Math.random() * 150;
     let height = 20;
-    let x = Math.random() * (canvas.width * 2 - width); // Meer ruimte voor mobiele camera
+    let x = Math.random() * (canvas.width - width);
     let y = canvas.height - 100 - i * 50 - Math.random() * 30;
     platforms.push({x, y, width, height});
   }
   
-  let targetX = canvas.width * 2 - 50; // Meer ruimte voor mobiele camera
+  let targetX = canvas.width - 50;
   let targetY = 100;
   if(platforms.length > 0) {
     const topPlatform = platforms.reduce((prev, curr) => (curr.y < prev.y ? curr : prev), platforms[0]);
@@ -246,9 +246,9 @@ function rectsCollide(r1, r2) {
            r1.y + r1.height < r2.y);
 }
 
-// Camera functies
+// Camera functies - alleen voor mobiel
 function updateCamera() {
-  if (!isTouchDevice()) return; // Alleen camera voor mobiel
+  if (!isTouchDevice()) return;
   
   // Horizontale camera volging
   camera.x = player.x - camera.width / 3;
@@ -257,19 +257,19 @@ function updateCamera() {
   camera.y = player.y - camera.height / 2;
   
   // Zorg dat camera niet buiten level gaat
-  camera.x = Math.max(0, Math.min(camera.x, canvas.width * 2 - camera.width));
+  camera.x = Math.max(0, Math.min(camera.x, canvas.width - camera.width));
   camera.y = Math.max(0, Math.min(camera.y, canvas.height - camera.height));
 }
 
 function applyCameraTransform() {
-  if (!isTouchDevice()) return; // Alleen transform voor mobiel
+  if (!isTouchDevice()) return;
   
   ctx.save();
   ctx.translate(-camera.x, -camera.y);
 }
 
 function resetCameraTransform() {
-  if (!isTouchDevice()) return; // Alleen transform voor mobiel
+  if (!isTouchDevice()) return;
   
   ctx.restore();
 }
@@ -406,7 +406,7 @@ function update(dt) {
     }
     if(keys['ArrowRight'] || keys['KeyD']) {
       player.x += player.speed;
-      if(player.x + player.width > canvas.width * 2) player.x = canvas.width * 2 - player.width;
+      if(player.x + player.width > canvas.width) player.x = canvas.width - player.width;
     }
     
     if((keys['ArrowUp'] || keys['KeyW'] || keys['Space']) && !player.jumping) {
@@ -484,14 +484,14 @@ function update(dt) {
       }
     }
     
-    updateCamera(); // Update camera positie
+    updateCamera(); // Update camera positie (alleen voor mobiel)
   }
 }
 
 function draw() {
   ctx.clearRect(0, 0, canvas.width, canvas.height);
   
-  applyCameraTransform(); // Pas camera transform toe
+  applyCameraTransform(); // Pas camera transform toe (alleen voor mobiel)
   
   if(gameState === 'playing') {
     drawPlatforms(level.platforms);
@@ -540,9 +540,11 @@ function resizeGame() {
     canvas.width = window.innerHeight / aspectRatio;
   }
   
-  // Update camera grootte
-  camera.width = canvas.width;
-  camera.height = canvas.height;
+  // Update camera grootte (alleen voor mobiel)
+  if (isTouchDevice()) {
+    camera.width = canvas.width;
+    camera.height = canvas.height;
+  }
   
   canvas.style.margin = 'auto';
   canvas.style.position = 'absolute';
