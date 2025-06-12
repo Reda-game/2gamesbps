@@ -73,6 +73,8 @@ const GOLD = '#FFD700';
 const PURPLE = '#800080';
 
 let keys = {};
+  let cameraOffsetX = 0;
+
 
 // Player
 const stickmanWidth = 20;
@@ -187,7 +189,7 @@ function rectsCollide(r1, r2) {
 
 // Draw stickman
 function drawStickman(p) {
-  const cX = p.x + p.width / 2;
+  const cX = p.x - cameraOffsetX + p.width / 2;
   const cY = p.y + 10;
   ctx.fillStyle = p.invincible ? PURPLE : BLACK;
   ctx.beginPath();
@@ -220,7 +222,7 @@ function drawStickman(p) {
 function drawPlatforms(platforms) {
   ctx.fillStyle = BLUE;
   for (const plat of platforms) {
-    ctx.fillRect(plat.x, plat.y, plat.width, plat.height);
+    ctx.fillRect(plat.x - cameraOffsetX, plat.y, plat.width, plat.height);
   }
 }
 
@@ -230,7 +232,7 @@ function drawCoins(coins) {
     if (!coin.collected) {
       ctx.fillStyle = GOLD;
       ctx.beginPath();
-      ctx.arc(coin.x + 10, coin.y + 10, 10, 0, Math.PI * 2);
+      ctx.arc(coin.x + 10 - cameraOffsetX, coin.y + 10, 10, 0, Math.PI * 2);
       ctx.fill();
       ctx.strokeStyle = 'orange';
       ctx.stroke();
@@ -242,14 +244,14 @@ function drawCoins(coins) {
 function drawEnemies(enemies) {
   ctx.fillStyle = RED;
   for (const enemy of enemies) {
-    ctx.fillRect(enemy.x, enemy.y, enemy.width, enemy.height);
+    ctx.fillRect(enemy.x - cameraOffsetX, enemy.y, enemy.width, enemy.height);
   }
 }
 
 // Draw target (finish)
 function drawTarget(target) {
   ctx.fillStyle = target.isLocked ? RED : GREEN;
-  ctx.fillRect(target.x, target.y, target.width, target.height);
+  ctx.fillRect(target.x - cameraOffsetX, target.y, target.width, target.height);
 }
 
 // Draw HUD (score, lives, level, coins, time)
@@ -297,7 +299,17 @@ function gameOver() {
 }
 
 // Update function
-function update(dt) {
+function update(dt) 
+    if (isTouchDevice()) {
+      // Houd de speler ⅓ van het scherm vanaf links
+      const desiredX = canvas.width / 3;
+      cameraOffsetX = player.x - desiredX;
+      // Beperk scroll aan linkerkant
+      if (cameraOffsetX < 0) cameraOffsetX = 0;
+    } else {
+      cameraOffsetX = 0;
+    }
+{
   if(gameState === 'playing') {
     levelTime += dt;
     gameTime = level.timeLimit - levelTime;
