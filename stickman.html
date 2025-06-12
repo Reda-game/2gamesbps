@@ -424,3 +424,34 @@ gameLoop();
 </script>
 </body>
 </html>
+
+<style>
+  #homeButton {
+    position: fixed;
+    bottom: 20px;
+    left: 20px;
+    background-color: #00cc00;
+    color: white;
+    padding: 10px 16px;
+    font-family: Arial, sans-serif;
+    font-size: 16px;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    user-select: none;
+    z-index: 10000;
+    box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+    transition: background-color 0.3s ease;
+  }
+  #homeButton:hover {
+    background-color: #009900;
+  }
+</style>
+
+<button id="homeButton" type="button" aria-label="Home knop">Home</button>
+
+<script>
+  document.getElementById('homeButton').addEventListener('click', () => {
+    window.location.href = 'https://reda-game.github.io/2gamesbps/';
+  });
+</script>
