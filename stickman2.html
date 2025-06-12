@@ -299,18 +299,18 @@ function gameOver() {
 }
 
 // Update function
-function update(dt) 
-    if (isTouchDevice()) {
-      // Houd de speler ⅓ van het scherm vanaf links
-      const desiredX = canvas.width / 3;
-      cameraOffsetX = player.x - desiredX;
-      // Beperk scroll aan linkerkant
-      if (cameraOffsetX < 0) cameraOffsetX = 0;
-    } else {
-      cameraOffsetX = 0;
-    }
-{
-  if(gameState === 'playing') {
+function update(dt) {
+  if (isTouchDevice()) {
+    // Houd de speler ⅓ van het scherm vanaf links
+    const desiredX = canvas.width / 3;
+    cameraOffsetX = player.x - desiredX;
+    // Beperk scroll aan linkerkant
+    if (cameraOffsetX < 0) cameraOffsetX = 0;
+  } else {
+    cameraOffsetX = 0;
+  }
+
+  if (gameState === 'playing') {
     levelTime += dt;
     gameTime = level.timeLimit - levelTime;
     if(gameTime <= 0) {
