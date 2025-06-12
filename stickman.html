@@ -147,6 +147,14 @@ let player = {
   invincibleTimer: 0,
 };
 
+// Camera
+let camera = {
+  x: 0,
+  y: 0,
+  width: canvas.width,
+  height: canvas.height
+};
+
 // Physics
 const gravity = 0.3; // Lagere gravity voor mobiel
 
@@ -172,12 +180,12 @@ function generateLevel(levelNum) {
   for(let i = 0; i < numPlatforms; i++) {
     let width = 100 + Math.random() * 150;
     let height = 20;
-    let x = Math.random() * (canvas.width - width);
+    let x = Math.random() * (canvas.width * 2 - width); // Meer ruimte voor mobiele camera
     let y = canvas.height - 100 - i * 50 - Math.random() * 30;
     platforms.push({x, y, width, height});
   }
   
-  let targetX = canvas.width - 50;
+  let targetX = canvas.width * 2 - 50; // Meer ruimte voor mobiele camera
   let targetY = 100;
   if(platforms.length > 0) {
     const topPlatform = platforms.reduce((prev, curr) => (curr.y < prev.y ? curr : prev), platforms[0]);
@@ -227,6 +235,8 @@ function resetPlayer() {
   player.invincibleTimer = 0;
   levelTime = 0;
   missingCoinsTimer = 0;
+  camera.x = 0;
+  camera.y = 0;
 }
 
 function rectsCollide(r1, r2) {
@@ -234,6 +244,34 @@ function rectsCollide(r1, r2) {
            r1.x + r1.width < r2.x || 
            r1.y > r2.y + r2.height || 
            r1.y + r1.height < r2.y);
+}
+
+// Camera functies
+function updateCamera() {
+  if (!isTouchDevice()) return; // Alleen camera voor mobiel
+  
+  // Horizontale camera volging
+  camera.x = player.x - camera.width / 3;
+  
+  // Verticale camera volging
+  camera.y = player.y - camera.height / 2;
+  
+  // Zorg dat camera niet buiten level gaat
+  camera.x = Math.max(0, Math.min(camera.x, canvas.width * 2 - camera.width));
+  camera.y = Math.max(0, Math.min(camera.y, canvas.height - camera.height));
+}
+
+function applyCameraTransform() {
+  if (!isTouchDevice()) return; // Alleen transform voor mobiel
+  
+  ctx.save();
+  ctx.translate(-camera.x, -camera.y);
+}
+
+function resetCameraTransform() {
+  if (!isTouchDevice()) return; // Alleen transform voor mobiel
+  
+  ctx.restore();
 }
 
 // Drawing functions
@@ -303,6 +341,8 @@ function drawTarget(target) {
 }
 
 function drawHUD() {
+  resetCameraTransform(); // Zorg dat HUD niet meebeweegt met camera
+  
   ctx.fillStyle = BLACK;
   ctx.font = '20px Arial';
   ctx.fillText('Score: ' + score, 10, 30);
@@ -310,6 +350,8 @@ function drawHUD() {
   ctx.fillText('Level: ' + currentLevel + '/50', 10, 90);
   ctx.fillText(`Coins: ${collectedCoins()}/${level.requiredCoins}`, 10, 120);
   ctx.fillText('Time: ' + Math.max(0, Math.floor(gameTime)), 10, 150);
+  
+  applyCameraTransform(); // Herstel camera transform voor andere elementen
 }
 
 function collectedCoins() {
@@ -364,7 +406,7 @@ function update(dt) {
     }
     if(keys['ArrowRight'] || keys['KeyD']) {
       player.x += player.speed;
-      if(player.x + player.width > canvas.width) player.x = canvas.width - player.width;
+      if(player.x + player.width > canvas.width * 2) player.x = canvas.width * 2 - player.width;
     }
     
     if((keys['ArrowUp'] || keys['KeyW'] || keys['Space']) && !player.jumping) {
@@ -441,11 +483,15 @@ function update(dt) {
         level.target.isLocked = false;
       }
     }
+    
+    updateCamera(); // Update camera positie
   }
 }
 
 function draw() {
   ctx.clearRect(0, 0, canvas.width, canvas.height);
+  
+  applyCameraTransform(); // Pas camera transform toe
   
   if(gameState === 'playing') {
     drawPlatforms(level.platforms);
@@ -456,23 +502,29 @@ function draw() {
     drawHUD();
     
     if(level.target.isLocked) {
+      resetCameraTransform(); // Zorg dat tekst niet meebeweegt
       ctx.fillStyle = RED;
       ctx.font = '24px Arial';
       ctx.fillText('Verzamel alle munten eerst!', canvas.width/2 - 130, 50);
+      applyCameraTransform();
     }
   } else if(gameState === 'gameOver') {
+    resetCameraTransform(); // Zorg dat game over scherm niet meebeweegt
     ctx.fillStyle = RED;
     ctx.font = '48px Arial';
     ctx.fillText('Game Over!', canvas.width / 2 - 120, canvas.height / 2 - 20);
     ctx.font = '24px Arial';
     ctx.fillText('Druk op R om opnieuw te starten', canvas.width / 2 - 140, canvas.height / 2 + 30);
   } else if(gameState === 'gameWin') {
+    resetCameraTransform(); // Zorg dat win scherm niet meebeweegt
     ctx.fillStyle = GREEN;
     ctx.font = '48px Arial';
     ctx.fillText('Gefeliciteerd! Je hebt gewonnen!', canvas.width / 2 - 280, canvas.height / 2 - 20);
     ctx.font = '24px Arial';
     ctx.fillText('Druk op R om opnieuw te starten', canvas.width / 2 - 140, canvas.height / 2 + 30);
   }
+  
+  resetCameraTransform(); // Reset voor volgende frame
 }
 
 // Responsive sizing
@@ -487,6 +539,10 @@ function resizeGame() {
     canvas.height = window.innerHeight;
     canvas.width = window.innerHeight / aspectRatio;
   }
+  
+  // Update camera grootte
+  camera.width = canvas.width;
+  camera.height = canvas.height;
   
   canvas.style.margin = 'auto';
   canvas.style.position = 'absolute';
