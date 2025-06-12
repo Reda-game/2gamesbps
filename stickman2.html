@@ -1,14 +1,63 @@
 <!DOCTYPE html>
 <html lang="nl">
 <head>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>Ultimate Stickman Adventure</title>
 <style>
+  /* Mobile Controls */
+#mobileControls {
+  position: fixed;
+  bottom: 30px;
+  width: 100%;
+  display: none;
+  justify-content: center;
+  z-index: 100;
+  touch-action: manipulation;
+}
+
+.control-group {
+  display: flex;
+  gap: 30px;
+}
+
+.control-btn {
+  width: 70px;
+  height: 70px;
+  background: rgba(0, 0, 0, 0.5);
+  border: 2px solid white;
+  border-radius: 50%;
+  color: white;
+  font-size: 28px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* Toon alleen op mobiel */
+@media (hover: none) and (pointer: coarse) {
+  #mobileControls {
+    display: flex;
+  }
+}
+  
   body { margin: 0; background: #fff; overflow: hidden; font-family: Arial, sans-serif; }
   canvas { background: #eee; display: block; margin: auto; }
 </style>
 </head>
+
+  <!-- Mobile Controls Container -->
+<div id="mobileControls">
+  <div class="control-group">
+    <div id="leftBtn" class="control-btn">←</div>
+    <div id="jumpBtn" class="control-btn">↑</div>
+    <div id="rightBtn" class="control-btn">→</div>
+  </div>
+</div>
+  
 <body>
 <canvas id="gameCanvas" width="800" height="600"></canvas>
 <script>
@@ -416,7 +465,45 @@ window.addEventListener('keydown', e => {
 window.addEventListener('keyup', e => {
   keys[e.code] = false;
 });
+// Mobile controls initialisatie
+function initMobileControls() {
+  const leftBtn = document.getElementById('leftBtn');
+  const rightBtn = document.getElementById('rightBtn');
+  const jumpBtn = document.getElementById('jumpBtn');
 
+  // Touch events
+  leftBtn.addEventListener('touchstart', () => keys['ArrowLeft'] = true);
+  leftBtn.addEventListener('touchend', () => keys['ArrowLeft'] = false);
+  
+  rightBtn.addEventListener('touchstart', () => keys['ArrowRight'] = true);
+  rightBtn.addEventListener('touchend', () => keys['ArrowRight'] = false);
+  
+  jumpBtn.addEventListener('touchstart', () => {
+    if (!player.jumping) {
+      keys['ArrowUp'] = true;
+      // Reset na korte tijd voor betere respons
+      setTimeout(() => keys['ArrowUp'] = false, 100);
+    }
+  });
+
+  // Voorkom scrollen bij gebruik controls
+  document.addEventListener('touchmove', (e) => {
+    if (e.target.classList.contains('control-btn')) {
+      e.preventDefault();
+    }
+  }, { passive: false });
+}
+
+// Controleer of het een touch device is
+function isTouchDevice() {
+  return 'ontouchstart' in window || navigator.maxTouchPoints > 0;
+}
+
+// Initialiseer controls als het een mobiel apparaat is
+if (isTouchDevice()) {
+  initMobileControls();
+}
+  
 // Start the game
 resetPlayer();
 gameLoop();
