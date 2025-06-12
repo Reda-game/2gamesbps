@@ -163,10 +163,6 @@ let missingCoinsTimer = 0;
 const levels = [];
 
 function generateLevel(levelNum) {
-  // Use canvas dimensions for level generation
-  const levelWidth = canvas.width;
-  const levelHeight = canvas.height;
-  
   let numPlatforms = Math.min(4 + Math.floor(levelNum / 3), 12);
   let numCoins = Math.min(3 + Math.floor(levelNum / 2), 15);
   let numEnemies = Math.min(Math.floor(levelNum / 5), 10);
@@ -175,15 +171,13 @@ function generateLevel(levelNum) {
   let platforms = [];
   for(let i = 0; i < numPlatforms; i++) {
     let width = 100 + Math.random() * 150;
-    // Ensure platforms don't get too wide on mobile
-    width = Math.min(width, levelWidth * 0.6);
     let height = 20;
-    let x = Math.random() * (levelWidth - width);
-    let y = levelHeight - 100 - i * 50 - Math.random() * 30;
+    let x = Math.random() * (canvas.width - width);
+    let y = canvas.height - 100 - i * 50 - Math.random() * 30;
     platforms.push({x, y, width, height});
   }
   
-  let targetX = levelWidth - 50;
+  let targetX = canvas.width - 50;
   let targetY = 100;
   if(platforms.length > 0) {
     const topPlatform = platforms.reduce((prev, curr) => (curr.y < prev.y ? curr : prev), platforms[0]);
@@ -215,9 +209,9 @@ function generateLevel(levelNum) {
     target: {x: targetX, y: targetY, width: 30, height: 40, isLocked: false},
     coins,
     enemies,
-    start: {x: 100, y: levelHeight - 150},
+    start: {x: 100, y: 300},
     timeLimit,
-    requiredCoins: Math.floor(numCoins * 0.7), // Require 70% of coins on mobile
+    requiredCoins: numCoins,
   };
 }
 
@@ -309,9 +303,8 @@ function drawTarget(target) {
 }
 
 function drawHUD() {
-  const fontSize = Math.max(16, canvas.width / 25); // Responsive font size
   ctx.fillStyle = BLACK;
-  ctx.font = `${fontSize}px Arial`;
+  ctx.font = '20px Arial';
   ctx.fillText('Score: ' + score, 10, 30);
   ctx.fillText('Lives: ' + lives, 10, 60);
   ctx.fillText('Level: ' + currentLevel + '/50', 10, 90);
@@ -435,7 +428,7 @@ function update(dt) {
     }
     
     if(rectsCollide(player, level.target)) {
-      if(collectedCoins() >= level.requiredCoins) { // Changed to >= for safety
+      if(collectedCoins() === level.requiredCoins) {
         levelComplete();
       } else {
         level.target.isLocked = true;
@@ -464,59 +457,43 @@ function draw() {
     
     if(level.target.isLocked) {
       ctx.fillStyle = RED;
-      const fontSize = Math.max(16, canvas.width / 25);
-      ctx.font = `${fontSize}px Arial`;
-      const message = 'Verzamel alle munten eerst!';
-      const textWidth = ctx.measureText(message).width;
-      ctx.fillText(message, canvas.width/2 - textWidth/2, 50);
+      ctx.font = '24px Arial';
+      ctx.fillText('Verzamel alle munten eerst!', canvas.width/2 - 130, 50);
     }
   } else if(gameState === 'gameOver') {
     ctx.fillStyle = RED;
-    const fontSize = Math.max(24, canvas.width / 15);
-    ctx.font = `${fontSize}px Arial`;
-    const message = 'Game Over!';
-    const textWidth = ctx.measureText(message).width;
-    ctx.fillText(message, canvas.width / 2 - textWidth/2, canvas.height / 2 - 20);
-    
-    const subFontSize = Math.max(16, canvas.width / 25);
-    ctx.font = `${subFontSize}px Arial`;
-    const subMessage = 'Druk op R om opnieuw te starten';
-    const subTextWidth = ctx.measureText(subMessage).width;
-    ctx.fillText(subMessage, canvas.width / 2 - subTextWidth/2, canvas.height / 2 + 30);
+    ctx.font = '48px Arial';
+    ctx.fillText('Game Over!', canvas.width / 2 - 120, canvas.height / 2 - 20);
+    ctx.font = '24px Arial';
+    ctx.fillText('Druk op R om opnieuw te starten', canvas.width / 2 - 140, canvas.height / 2 + 30);
   } else if(gameState === 'gameWin') {
     ctx.fillStyle = GREEN;
-    const fontSize = Math.max(24, canvas.width / 15);
-    ctx.font = `${fontSize}px Arial`;
-    const message = 'Gefeliciteerd! Je hebt gewonnen!';
-    const textWidth = ctx.measureText(message).width;
-    ctx.fillText(message, canvas.width / 2 - textWidth/2, canvas.height / 2 - 20);
-    
-    const subFontSize = Math.max(16, canvas.width / 25);
-    ctx.font = `${subFontSize}px Arial`;
-    const subMessage = 'Druk op R om opnieuw te starten';
-    const subTextWidth = ctx.measureText(subMessage).width;
-    ctx.fillText(subMessage, canvas.width / 2 - subTextWidth/2, canvas.height / 2 + 30);
+    ctx.font = '48px Arial';
+    ctx.fillText('Gefeliciteerd! Je hebt gewonnen!', canvas.width / 2 - 280, canvas.height / 2 - 20);
+    ctx.font = '24px Arial';
+    ctx.fillText('Druk op R om opnieuw te starten', canvas.width / 2 - 140, canvas.height / 2 + 30);
   }
 }
 
-// Responsive sizing - NEW IMPROVED VERSION
+// Responsive sizing
 function resizeGame() {
-  // Set canvas to full window size
-  canvas.width = window.innerWidth;
-  canvas.height = window.innerHeight;
+  const gameContainer = document.getElementById('gameContainer');
+  const aspectRatio = 800 / 600;
   
-  // Adjust player size based on screen size
-  player.width = Math.max(20, canvas.width / 20);
-  player.height = Math.max(40, canvas.width / 10);
-  
-  // Adjust player speed based on screen width
-  player.speed = Math.max(3, canvas.width / 150);
-  
-  // Regenerate level with new dimensions
-  if (level) {
-    level = generateLevel(currentLevel);
-    resetPlayer();
+  if (window.innerHeight / window.innerWidth > aspectRatio) {
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerWidth * aspectRatio;
+  } else {
+    canvas.height = window.innerHeight;
+    canvas.width = window.innerHeight / aspectRatio;
   }
+  
+  canvas.style.margin = 'auto';
+  canvas.style.position = 'absolute';
+  canvas.style.top = '0';
+  canvas.style.bottom = '0';
+  canvas.style.left = '0';
+  canvas.style.right = '0';
 }
 
 // Mobile controls
