@@ -310,7 +310,7 @@ function update(dt) {
     cameraOffsetX = 0;
   }
 
-  if (gameState === 'playing') {
+  if(gameState === 'playing') {
     levelTime += dt;
     gameTime = level.timeLimit - levelTime;
     if(gameTime <= 0) {
