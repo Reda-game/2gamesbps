@@ -261,7 +261,7 @@ function drawHUD() {
   ctx.fillText('Score: ' + score, 10, 30);
   ctx.fillText('Lives: ' + lives, 10, 60);
   ctx.fillText('Level: ' + currentLevel + '/50', 10, 90);
-  ctx.fillText(Coins: ${collectedCoins()}/${level.requiredCoins}, 10, 120);
+  ctx.fillText("Coins: " + collectedCoins() + "/" + level.requiredCoins, 10, 120);
   ctx.fillText('Time: ' + Math.max(0, Math.floor(gameTime)), 10, 150);
 }
 
