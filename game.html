@@ -5,6 +5,54 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>3D Shooter Game</title>
   <style>
+    #mobileControls {
+  position: fixed;
+  bottom: 20px;
+  left: 20px;
+  z-index: 1000;
+  user-select: none;
+  pointer-events: none;
+}
+
+#joystickBase {
+  width: 100px;
+  height: 100px;
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: 50%;
+  position: relative;
+  pointer-events: auto;
+  touch-action: none;
+}
+
+#joystickStick {
+  width: 40px;
+  height: 40px;
+  background: rgba(0, 255, 0, 0.8);
+  border-radius: 50%;
+  position: absolute;
+  top: 30px;
+  left: 30px;
+  touch-action: none;
+}
+
+#shootButton {
+  position: fixed;
+  bottom: 40px;
+  right: 40px;
+  width: 70px;
+  height: 70px;
+  font-size: 24px;
+  border-radius: 50%;
+  background-color: rgba(255, 50, 50, 0.9);
+  border: none;
+  color: white;
+  z-index: 1000;
+  pointer-events: auto;
+  touch-action: manipulation;
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
+}
+
+  
     body {
       margin: 0;
       overflow: hidden;
@@ -320,7 +368,62 @@
 
 <button id="homeButton" type="button" aria-label="Home knop">Home</button>
 
+<!-- Mobile Controls -->
+<div id="mobileControls">
+  <div id="joystickBase">
+    <div id="joystickStick"></div>
+  </div>
+  <button id="shootButton">🔫</button>
+</div>
+
 <script>
+    // Mobile Joystick Logic
+  const joystickBase = document.getElementById("joystickBase");
+  const joystickStick = document.getElementById("joystickStick");
+
+  let joystickActive = false;
+  let startX, startY;
+
+  joystickBase.addEventListener("touchstart", (e) => {
+    joystickActive = true;
+    const touch = e.touches[0];
+    startX = touch.clientX;
+    startY = touch.clientY;
+  });
+
+  joystickBase.addEventListener("touchmove", (e) => {
+    if (!joystickActive) return;
+    const touch = e.touches[0];
+    const dx = touch.clientX - startX;
+    const dy = touch.clientY - startY;
+
+    joystickStick.style.left = `${30 + dx * 0.4}px`;
+    joystickStick.style.top = `${30 + dy * 0.4}px`;
+
+    keys["ArrowLeft"] = dx < -20;
+    keys["ArrowRight"] = dx > 20;
+    keys["ArrowUp"] = dy < -20;
+    keys["ArrowDown"] = dy > 20;
+  });
+
+  joystickBase.addEventListener("touchend", () => {
+    joystickActive = false;
+    joystickStick.style.left = "30px";
+    joystickStick.style.top = "30px";
+
+    keys["ArrowLeft"] = false;
+    keys["ArrowRight"] = false;
+    keys["ArrowUp"] = false;
+    keys["ArrowDown"] = false;
+  });
+
+  // Shoot Button Logic
+  const shootBtn = document.getElementById("shootButton");
+  shootBtn.addEventListener("touchstart", (e) => {
+    e.preventDefault(); // voorkom dubbel tikken
+    shoot();
+  });
+
   document.getElementById('homeButton').addEventListener('click', () => {
     window.location.href = 'https://reda-game.github.io/2gamesbps/';
   });
