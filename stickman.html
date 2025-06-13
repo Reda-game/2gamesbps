@@ -191,8 +191,9 @@ function rectsCollide(r1, r2) {
 function drawStickman(p) {
   const cX = p.x - cameraOffsetX + p.width / 2;
   const cY = p.y + 10;
-  const x = p.x - cameraOffsetX;
-  const xRight = p.x + p.width - cameraOffsetX;
+
+  const armLength = 10;
+  const legLength = 10;
 
   ctx.fillStyle = p.invincible ? PURPLE : BLACK;
 
@@ -200,6 +201,7 @@ function drawStickman(p) {
   ctx.beginPath();
   ctx.arc(cX, cY, 10, 0, Math.PI * 2);
   ctx.fill();
+
   ctx.lineWidth = 2;
   ctx.strokeStyle = ctx.fillStyle;
 
@@ -209,22 +211,23 @@ function drawStickman(p) {
   ctx.lineTo(cX, p.y + 40);
   ctx.stroke();
 
-  // Arms
+  // Arms (symmetrisch rondom cX)
   ctx.beginPath();
   ctx.moveTo(cX, p.y + 25);
-  ctx.lineTo(x, p.y + 35);
+  ctx.lineTo(cX - armLength, p.y + 35);
   ctx.moveTo(cX, p.y + 25);
-  ctx.lineTo(xRight, p.y + 35);
+  ctx.lineTo(cX + armLength, p.y + 35);
   ctx.stroke();
 
-  // Legs
+  // Legs (symmetrisch rondom cX)
   ctx.beginPath();
   ctx.moveTo(cX, p.y + 40);
-  ctx.lineTo(x, p.y + 55);
+  ctx.lineTo(cX - legLength, p.y + 55);
   ctx.moveTo(cX, p.y + 40);
-  ctx.lineTo(xRight, p.y + 55);
+  ctx.lineTo(cX + legLength, p.y + 55);
   ctx.stroke();
 }
+
 
 // Draw platforms
 function drawPlatforms(platforms) {
